@@ -1,4 +1,5 @@
 import pygame
+import random
 
 class Fighter():
     def __init__(self, player, x, y, flip, data, sprite_sheet, animation_steps, sound):
@@ -24,17 +25,80 @@ class Fighter():
         self.health = 100
         self.alive = True
         
-    # Load Images
+        # AI specific attributes
+        self.ai_move_delay = 0
+        self.ai_current_dx = 0
+        self.ai_last_action = None
+        self.ai_reaction_time = 0
+        self.ai_difficulty = "hard"
+
     def load_images(self, sprite_sheet, animation_steps):
         # Extract images from spritesheet
         animation_list = []
-        for y, animation in enumerate (animation_steps):
+        for y, animation in enumerate(animation_steps):
             temp_img_list = []
-            for x in range (animation):
+            for x in range(animation):
                 temp_img = sprite_sheet.subsurface(x * self.size, y * self.size, self.size, self.size)             
                 temp_img_list.append(pygame.transform.scale(temp_img, (self.size * self.image_scale, self.size * self.image_scale)))
             animation_list.append(temp_img_list)
         return animation_list
+    
+    # Set AI Move Method
+    def ai_move(self, target, screen_width, screen_height, surface, round_over):
+        if not self.alive or round_over or self.attacking:
+            return
+
+        dx = 0
+        self.running = False
+
+        distance = abs(self.rect.centerx - target.rect.centerx)
+        in_attack_range = distance < 150
+
+        if self.ai_move_delay <= 0:
+            self.ai_move_delay = random.randint(10, 30)
+
+            if in_attack_range:
+                if random.random() < 0.7:  # Attack
+                    self.attack_type = random.choice([1, 2])
+                    self.attack(surface, target)
+                else:  # Back off
+                    self.ai_current_dx = -8 if self.flip else 8
+            else:
+                if self.rect.centerx < target.rect.centerx:
+                    self.ai_current_dx = random.uniform(4, 8)
+                else:
+                    self.ai_current_dx = random.uniform(-8, -4)
+
+            if random.random() < 0.2 and not self.jump:
+                self.vel_y = -25
+                self.jump = True
+        else:
+            self.ai_move_delay -= 1
+
+        dx = self.ai_current_dx
+        self.running = True if dx != 0 else False
+
+        self.vel_y += 2
+        dy = self.vel_y
+
+        if self.rect.left + dx < 0:
+            dx = 0
+        if self.rect.right + dx > screen_width:
+            dx = 0
+
+        if self.rect.bottom + dy > screen_height - 45:
+            self.vel_y = 0
+            self.jump = False
+            dy = screen_height - 45 - self.rect.bottom
+
+        self.rect.x += dx
+        self.rect.y += dy
+
+        if target.rect.centerx > self.rect.centerx:
+            self.flip = False
+        else:
+            self.flip = True
+
             
     # Set Move Method    
     def move(self, Screen_Width, Screen_Height, surface, target, round_over):
@@ -68,40 +132,16 @@ class Fighter():
                     self.jump = True
                     
                 # Attack
-                if key[pygame.K_t] or key[pygame.K_y]:
+                if key[pygame.K_k] or key[pygame.K_l]:
                     self.attack(surface, target)
                     # Determine which attack type was used
-                    if key[pygame.K_t]:
+                    if key[pygame.K_k]:
                         self.attack_type = 1
-                    if key[pygame.K_y]:
+                    if key[pygame.K_l]:
                         self.attack_type = 2
+            elif self.player == 2:
+                self.ai_move(target, Screen_Width, Screen_Height, surface, round_over)
             
-            # Check Player 2 Controls
-            if self.player == 2:
-            
-                # Movement
-                if key[pygame.K_LEFT]:
-                    dx = -speed
-                    self.running = True
-                if key[pygame.K_RIGHT]:
-                    dx = speed
-                    self.running = True
-                
-                # Jump
-                if key[pygame.K_UP] and self.jump == False:
-                    self.vel_y = -30
-                    self.jump = True
-                    
-                # Attack
-                if key[pygame.K_KP2] or key[pygame.K_KP3]:
-                    self.attack(surface, target)
-                    # Determine which attack type was used
-                    if key[pygame.K_KP2]:
-                        self.attack_type = 1
-                    if key[pygame.K_KP3]:
-                        self.attack_type = 2
-            
-        # Apply Gravity
         self.vel_y += gravity
         dy += self.vel_y
             
@@ -147,8 +187,8 @@ class Fighter():
                 self.update_action(5) # 5:attack2
                 
         elif self.jump == True:
-          self.update_action(2) # 2:jump
-          
+            self.update_action(2) # 2:jump
+        
         elif self.running == True:
             self.update_action(1) # 1:run
             
